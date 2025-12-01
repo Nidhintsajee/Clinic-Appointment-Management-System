@@ -1,0 +1,11 @@
+[run]
+source = clinic_app
+omit = */tests/*, */migrations/*, */__pycache__/*, */venv/*, */myenv/*
+
+[report]
+exclude_lines =
+    pragma: no cover
+    def __str__
+    raise AssertionError
+    raise NotImplementedError
+    if __name__ == .__main__.
