@@ -225,10 +225,8 @@ Content-Type: application/json
 
 #### 5. Patient Profile
 ```http
-GET    /api/patient/profile/         # Get current patient profile
-PATCH  /api/patient/profile/update/  # Update patient profile
-GET    /api/patient/appointments/    # Get patient's appointments
-POST   /api/patient/change-password/ # Change password
+GET    /api/auth/profile/         # Get current patient profile
+POST   /api/auth/change-password/ # Change password
 ```
 
 #### 6. Doctor Availability
@@ -334,8 +332,9 @@ The project includes comprehensive tests for:
 
 Run test coverage:
 ```bash
-./run_coverage.sh all
-```
+ coverage run --source='clinic_app' manage.py test
+ coverage report -m
+ ```
 
 ## 🔧 Development
 
@@ -352,32 +351,3 @@ clinic_management/
 ├── manage.py              # Django management script
 └── requirements.txt       # Python dependencies
 ```
-
-### Adding New Features
-1. Create model migrations: `python manage.py makemigrations`
-2. Update serializers and views
-3. Add tests for new functionality
-4. Update API documentation
-
-## 📄 License
-
-This project is for educational/demonstration purposes.
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Commit changes with descriptive messages
-4. Push to the branch
-5. Create a Pull Request
-
-## 📞 Support
-
-For issues or questions:
-1. Check the troubleshooting section
-2. Review API documentation
-3. Examine test cases for usage examples
-
----
-
-**Happy Scheduling!** 🩺📅
