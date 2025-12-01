@@ -321,88 +321,64 @@ class AppointmentDetailView(generics.RetrieveUpdateDestroyAPIView):
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def available_slots(request):
-    doctor_id = request.GET.get("doctor_id")
-    clinic_id = request.GET.get("clinic_id")
-    visit_type_id = request.GET.get("visit_type_id")
-    date_str = request.GET.get("date")
-
-    if not all([doctor_id, clinic_id, visit_type_id, date_str]):
+    """Get available appointment slots"""
+    required = ["doctor_id", "clinic_id", "visit_type_id", "date"]
+    if not all(param in request.GET for param in required):
         return Response(
-            {"error": "Missing required parameters"}, status=status.HTTP_400_BAD_REQUEST
+            {"error": "Missing parameters"}, status=status.HTTP_400_BAD_REQUEST
         )
 
     try:
-        date = datetime.strptime(date_str, "%Y-%m-%d").date()
-        doctor = Doctor.objects.get(id=doctor_id)
-        clinic = Clinic.objects.get(id=clinic_id)
-        visit_type = VisitType.objects.get(id=visit_type_id)
-    except (
-        ValueError,
-        Doctor.DoesNotExist,
-        Clinic.DoesNotExist,
-        VisitType.DoesNotExist,
-    ) as e:
+        date = datetime.strptime(request.GET["date"], "%Y-%m-%d").date()
+        doctor = Doctor.objects.get(id=request.GET["doctor_id"])
+        clinic = Clinic.objects.get(id=request.GET["clinic_id"])
+        visit_type = VisitType.objects.get(id=request.GET["visit_type_id"])
+    except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-    day_of_week = date.isoweekday()
+    # Check doctor availability
+    availability = DoctorClinicAvailability.objects.filter(
+        doctor=doctor, clinic=clinic, day_of_week=date.isoweekday()
+    ).first()
 
-    try:
-        availability = DoctorClinicAvailability.objects.get(
-            doctor=doctor, clinic=clinic, day_of_week=day_of_week
-        )
-    except DoctorClinicAvailability.DoesNotExist:
+    if not availability:
         return Response({"available_slots": []})
 
-    # Get appointments and calculate end_time if missing
+    # Get booked appointments with their durations
     appointments = Appointment.objects.filter(
         doctor=doctor, scheduled_time__date=date, status="scheduled"
-    ).order_by("scheduled_time")
-
-    # Ensure all appointments have end_time
-    appointments_with_end_time = []
-    for appointment in appointments:
-        if not appointment.end_time and appointment.visit_type:
-            # Calculate end_time if missing
-            appointment.end_time = appointment.scheduled_time + timedelta(
-                minutes=appointment.visit_type.duration_minutes
-            )
-        appointments_with_end_time.append(appointment)
+    ).select_related("visit_type")
 
     slot_duration = timedelta(minutes=visit_type.duration_minutes)
     available_slots = []
 
-    # Create datetime objects with timezone
-    tz = timezone.get_current_timezone()
-
-    # Combine date with time and make timezone-aware
     current_time = timezone.make_aware(datetime.combine(date, availability.start_time))
-    end_time_value = timezone.make_aware(datetime.combine(date, availability.end_time))
+    end_time = timezone.make_aware(datetime.combine(date, availability.end_time))
 
-    while current_time + slot_duration <= end_time_value:
-        slot_end = current_time + slot_duration
+    # Create a set of all busy times (at 15-minute intervals)
+    busy_times = set()
+    for appointment in appointments:
+        appt_start = appointment.scheduled_time
+        appt_duration = timedelta(minutes=appointment.visit_type.duration_minutes)
+        appt_end = appt_start + appt_duration
 
-        conflict = False
-        for appointment in appointments_with_end_time:
-            appointment_start = appointment.scheduled_time
-            appointment_end = appointment.end_time
+        # Mark every 15-minute interval within this appointment as busy
+        time_slot = appt_start
+        while time_slot < appt_end:
+            busy_times.add(time_slot.time())
+            time_slot += timedelta(minutes=15)
 
-            # Skip if appointment_end is None
-            if appointment_end is None:
-                # Calculate it if we can
-                if appointment.visit_type:
-                    appointment_end = appointment_start + timedelta(
-                        minutes=appointment.visit_type.duration_minutes
-                    )
-                else:
-                    continue
-
-            # Check for overlap
-            if current_time < appointment_end and slot_end > appointment_start:
-                conflict = True
+    while current_time + slot_duration <= end_time:
+        # Check if any 15-minute interval within this slot is busy
+        slot_available = True
+        check_time = current_time
+        while check_time < current_time + slot_duration:
+            if check_time.time() in busy_times:
+                slot_available = False
                 break
+            check_time += timedelta(minutes=15)
 
-        if not conflict:
-            # Format time
+        if slot_available:
             available_slots.append(current_time.strftime("%H:%M"))
 
         current_time += timedelta(minutes=15)
@@ -412,7 +388,7 @@ def available_slots(request):
             "doctor": f"Dr. {doctor.user.get_full_name()}",
             "clinic": clinic.name,
             "visit_type": visit_type.name,
-            "date": date_str,
+            "date": request.GET["date"],
             "available_slots": available_slots,
         }
     )
