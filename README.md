@@ -351,3 +351,7 @@ clinic_management/
 ├── manage.py              # Django management script
 └── requirements.txt       # Python dependencies
 ```
+
+## 🔗 Quick Links
+
+- [Postman Collection](https://postman.co/workspace/My-Workspace~9a97bb13-dd4a-4b31-801b-239f89e63e7e/collection/7902837-6b77a2ae-84e3-4245-bcfb-e7ded075e84b?action=share&creator=7902837&active-environment=7902837-133cfe58-c210-4b09-a211-38ce9e9e1ef5)
